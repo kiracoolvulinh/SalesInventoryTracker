@@ -1,0 +1,118 @@
+Hệ thống quản lý bán hàng
+I. Cài đặt
+	1. Danh mục tài khoản
+		- Tài khoản quản lý
+		- Tài khoản nhân viên bán hàng
+	2. Phân quyền chức năng
+		- Tài khoản được vào chức năng nào
+		- Tài khoản có được xóa dữ liệu không
+
+II. Danh mục
+	1. Danh mục Nhóm hàng
+		- Các trường thông tin: 
+			+ Mã phân loại
+			+ Tên phân loại
+			+ Ghi chú
+		* Thêm mới thông tin và danh sách trên cùng 1 màn hình
+	2. Danh mục hàng hóa
+		- Danh sách hàng hóa: Hình ảnh, Mã hàng hóa, Nhóm hàng, Tên hàng hóa, Ghi chú
+		- Thêm mới hàng hóa: Cần nhập các thông tin
+			+ Mã hàng 
+			+ Tên hàng 
+			+ Nhón hàng (Danh sách từ Danh mục Nhóm hàng)
+			+ Đơn vị tính
+			+ Hình ảnh (2 đến 3 hình ảnh)
+			+ Ghi chú
+	3. Danh mục nhà cung cấp
+		- Các trường thông tin: 
+			+ Mã nhà cung cấp
+			+ Tên nhà cung cấp
+			+ Điện thoại
+			+ Địa chỉ
+			+ Người đại diện
+			+ Ghi chú
+		* Thêm mới thông tin và danh sách trên cùng 1 màn hình
+	4. Danh mục khách hàng
+		- Danh sách khách hàng
+			+ Mã khách hàng
+			+ Tên khách hàng
+			+ Điện thoại
+			+ Nợ hiện tại
+			+ Tổng đã bán
+		- Thêm mới thông tin khách hàng
+			+ Mã khách hàng
+			+ Tên khách hàng
+			+ Điện thoại
+			+ Địa chỉ
+			
+III. Giao dịch
+	1. Quản lý nhập hàng
+		- Danh sách phiếu nhập
+			+ Mã phiếu nhập
+			+ Thời gian nhập
+			+ Nhà cung cấp
+			+ Tổng tiền hàng
+			+ Đã thanh toán
+			+ Công nợ
+		- Thêm mới phiếu nhập: Cần nhập các thông tin
+			+ Mã phiếu nhập (Tự sinh)
+			+ Ngày nhập
+			+ Nhà cung cấp
+			+ Chứng từ đi kèm
+			+ Danh sách hàng hóa nhập
+				. Mã hàng
+				. Tên hàng
+				. Đơn vị
+				. Số lượng
+				. Giá nhập
+				. Giá bán
+				. Thành tiền (theo Giá nhập)
+			+ Tổng tiền hàng
+			+ Tiền thanh toán
+			+ Công nợ
+			+ Ghi chú
+	2. Quản lý bán hàng
+		- Danh sách phiếu xuất
+			+ Mã phiếu xuất
+			+ Ngày xuất
+			+ Khách hàng
+			+ Tổng tiền hàng
+			+ Trạng thái
+		- Thêm mới phiếu xuất
+			+ Mã phiếu xuất (Tự sinh)
+			+ Ngày xuất
+			+ Loại khách hàng (Ẩn danh, Khách thường)
+			+ Thông tin khách hàng (Nếu là khách thường, có thể popup giao diện thêm mới khách hàng để bổ sung)
+			+ Danh sách hàng xuất
+				. Mã hàng
+				. Tên hàng
+				. Đơn vị
+				. Số lượng
+				. Đơn giá (Giá bán)
+				. Thành tiền
+			+ Tổng tiền hàng
+			+ Khách trả
+			+ Hình thức thanh toán (Tiền mặt, Chuyển khoản, Quẹt thẻ)
+			+ Tiền thừa trả lại
+			+ Trạng thái (Hoàn thành, Chờ)
+
+IV. Tiện ích
+	1. Quản lý tồn kho
+		- Danh sách các mặt hàng còn tồn
+			+ Mã hàng
+			+ Tên hàng
+			+ Đơn vị
+			+ Giá bán
+			+ Giá nhập
+			+ Số lượng tồn kho
+			
+	2. Điều chỉnh giá bán
+		- Danh sách các mặt hàng còn tồn
+			+ Mã hàng
+			+ Tên hàng
+			+ Đơn vị
+			+ Giá nhập
+			+ Giá bán của phiếu nhập cuối cùng
+			+ Giá điều chỉnh (Mặc định = giá bán ở phiếu nhập gần nhất)
+			
+hãy lập trình giúp tôi 1 phần mềm bán hàng có cấu trúc như trên, giao diện sử dụng tiếng việt và sử dụng database PostgreSQL với connectionString = "Host=localhost;Port=5432;Database=sales_management;Username=postgres;Password=123abc..";
