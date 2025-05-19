@@ -53,7 +53,7 @@ export const products = pgTable("products", {
   name: text("name").notNull(),
   categoryId: integer("category_id").references(() => productCategories.id),
   unit: text("unit").notNull(),
-  images: text("images").array(),
+  images: text("images").array().default([]),
   purchasePrice: doublePrecision("purchase_price").notNull(),
   sellingPrice: doublePrecision("selling_price").notNull(),
   stock: integer("stock").default(0).notNull(),
@@ -70,6 +70,8 @@ export const insertProductSchema = createInsertSchema(products).pick({
   sellingPrice: true,
   stock: true,
   notes: true,
+}).extend({
+  images: z.array(z.string()).default([]),
 });
 
 // Suppliers

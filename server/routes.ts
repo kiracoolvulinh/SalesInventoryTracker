@@ -94,6 +94,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       next(error);
     }
   });
+
+  app.get("/api/taikhoan", async (req, res, next) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).end();
+    }
+  
+    try {
+      const result = await storage.getUserWithRole(req.user.id);
+      if (!result) return res.status(404).end();
+  
+      const { user, role } = result;
+  
+      // Trả về thông tin người dùng và vai trò nhưng không bao gồm mật khẩu
+      return res.json({
+        id: user.id,
+        username: user.username,
+        fullName: user.fullName,
+        roleId: user.roleId,
+        isActive: user.isActive,
+        role: {
+          id: role.id,
+          name: role.name,
+          permissions: role.permissions || {
+            categories: { view: true, create: true, update: true, delete: true },
+            products: { view: true, create: true, update: true, delete: true },
+            suppliers: { view: true, create: true, update: true, delete: true },
+            customers: { view: true, create: true, update: true, delete: true },
+            purchases: { view: true, create: true, update: true, delete: true },
+            sales: { view: true, create: true, update: true, delete: true },
+            inventory: { view: true, update: true },
+            prices: { view: true, update: true },
+            reports: { view: true },
+            settings: { view: true, create: true, update: true, delete: true }
+          }
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
   
   // Product Categories
   app.get("/api/categories", async (req, res, next) => {
@@ -196,7 +236,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/products/:id", async (req, res, next) => {
     try {
       const id = parseInt(req.params.id);
-      const product = await storage.updateProduct(id, req.body);
+      const validatedData = insertProductSchema.parse(req.body);
+      const product = await storage.updateProduct(id, validatedData);
       if (!product) {
         return res.status(404).json({ message: "Sản phẩm không tồn tại" });
       }
@@ -355,15 +396,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/purchase-orders", async (req, res, next) => {
+  app.post(
+    "/api/purchase-orders",
+    requireRole("admin"),
+    async (req: Express.Request, res: Express.Response, next: Express.NextFunction) => {
     try {
-      const { order, items } = req.body;
+        const validatedData = insertPurchaseOrderSchema.parse(req.body);
+        console.log('Creating purchase order with data:', validatedData);
       
-      const validatedOrder = insertPurchaseOrderSchema.parse(order);
-      const validatedItems = z.array(insertPurchaseOrderItemSchema).parse(items);
+        const result = await storage.createPurchaseOrder(validatedData);
+        console.log('Purchase order created successfully:', result);
       
-      const result = await storage.createPurchaseOrder(validatedOrder, validatedItems);
       res.status(201).json(result);
+    } catch (error) {
+        console.error('Error creating purchase order:', error);
+      next(error);
+      }
+    }
+  );
+
+  app.delete("/api/purchase-orders/:id", async (req, res, next) => {
+    try {
+      const id = parseInt(req.params.id);
+      const order = await storage.getPurchaseOrder(id);
+      if (!order) {
+        return res.status(404).json({ message: "Phiếu nhập không tồn tại" });
+      }
+
+      // Get order items to update product stock
+      const items = await storage.getPurchaseOrderItems(id);
+      
+      // Update product stock (subtract the quantities)
+      for (const item of items) {
+        const product = await storage.getProduct(item.productId);
+        if (product) {
+          await storage.updateProduct(product.id, {
+            stock: product.stock - item.quantity
+          });
+        }
+      }
+
+      // Delete the purchase order (this will cascade delete the items)
+      await storage.deletePurchaseOrder(id);
+      res.status(204).end();
     } catch (error) {
       next(error);
     }

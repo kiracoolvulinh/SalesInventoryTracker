@@ -109,6 +109,25 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getUserWithRole(id: number): Promise<{ user: User, role: Role } | undefined> {
+    const [result] = await db
+      .select({
+        user: users,
+        role: roles
+      })
+      .from(users)
+      .innerJoin(roles, eq(users.roleId, roles.id))
+      .where(eq(users.id, id));
+  
+    if (!result) return undefined;
+  
+    return {
+      user: result.user,
+      role: result.role
+    };
+  }
+
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
@@ -141,6 +160,12 @@ export class DatabaseStorage implements IStorage {
   async getRoles(): Promise<Role[]> {
     return await db.select().from(roles);
   }
+
+  async getRole(id: number): Promise<Role | undefined> {
+    const [role] = await db.select().from(roles).where(eq(roles.id, id));
+    return role;
+  }
+  
   
   async createRole(role: InsertRole): Promise<Role> {
     const [newRole] = await db

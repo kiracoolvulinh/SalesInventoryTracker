@@ -2,8 +2,6 @@ import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import { Express } from "express";
 import session from "express-session";
-import { scrypt, randomBytes, timingSafeEqual } from "crypto";
-import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
 
@@ -13,20 +11,7 @@ declare global {
   }
 }
 
-const scryptAsync = promisify(scrypt);
 
-async function hashPassword(password: string) {
-  const salt = randomBytes(16).toString("hex");
-  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${buf.toString("hex")}.${salt}`;
-}
-
-async function comparePasswords(supplied: string, stored: string) {
-  const [hashed, salt] = stored.split(".");
-  const hashedBuf = Buffer.from(hashed, "hex");
-  const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-  return timingSafeEqual(hashedBuf, suppliedBuf);
-}
 
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
@@ -48,7 +33,7 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       const user = await storage.getUserByUsername(username);
-      if (!user || !(await comparePasswords(password, user.password))) {
+      if (!user || user.password !== password) {
         return done(null, false);
       } else {
         return done(null, user);
@@ -69,11 +54,10 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Tên đăng nhập đã tồn tại" });
       }
 
-      const hashedPassword = await hashPassword(req.body.password);
       
       const user = await storage.createUser({
         ...req.body,
-        password: hashedPassword,
+        password: req.body.password,
       });
 
       req.login(user, (err) => {
@@ -86,7 +70,7 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
+    passport.authenticate("local", (err: Error | null, user: Express.User | false, info: { message: string }) => {
       if (err) return next(err);
       if (!user) return res.status(400).json({ message: "Tên đăng nhập hoặc mật khẩu không đúng" });
       
@@ -99,7 +83,9 @@ export function setupAuth(app: Express) {
           action: "login",
           details: `User ${user.username} logged in`,
           timestamp: new Date()
-        }).catch(console.error);
+        }).catch(() => {
+          // Silently handle error
+        });
         
         return res.status(200).json(user);
       });
@@ -116,7 +102,9 @@ export function setupAuth(app: Express) {
         action: "logout",
         details: `User ${(req.user as SelectUser).username} logged out`,
         timestamp: new Date()
-      }).catch(console.error);
+      }).catch(() => {
+        // Silently handle error
+      });
     }
     
     req.logout((err) => {

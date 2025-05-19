@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import type { ProductCategory } from "@shared/schema";
 
 // Define form schema
 const productSchema = z.object({
@@ -88,10 +89,15 @@ export default function ProductsPage() {
 
   // Fetch categories for the dropdown
   const { 
-    data: categories = [],
+    data: categories = [] as ProductCategory[], 
     isLoading: isCategoriesLoading 
   } = useQuery({
     queryKey: ['/api/categories'],
+    queryFn: async () => {
+      const res = await apiRequest("GET", '/api/categories');
+      const data = await res.json();
+      return data as ProductCategory[];
+    }
   });
 
   // Fetch products with category and search filters
@@ -102,7 +108,7 @@ export default function ProductsPage() {
     error,
     refetch
   } = useQuery({
-    queryKey: ['/api/products', { categoryId: selectedCategory, search: searchQuery }],
+    queryKey: ['/api/products', { categoryId: selectedCategory === 'all' ? undefined : selectedCategory, search: searchQuery }],
     queryFn: async ({ queryKey }) => {
       const [_, { categoryId, search }] = queryKey as [string, { categoryId?: string, search?: string }];
       let url = '/api/products';
@@ -113,9 +119,10 @@ export default function ProductsPage() {
       
       if (params.toString()) url += `?${params.toString()}`;
       
-      const res = await fetch(url, { credentials: 'include' });
-      if (!res.ok) throw new Error('Không thể tải danh sách sản phẩm');
+      const res = await apiRequest("GET", url);
+			console.log(res);
       return res.json();
+      
     }
   });
 
@@ -414,17 +421,32 @@ export default function ProductsPage() {
                           <FormLabel>Hình ảnh</FormLabel>
                           <FormControl>
                             <Input 
-                              placeholder="URL hình ảnh (vd: https://example.com/image.jpg)" 
-                              value={field.value?.[0] || ""}
+                              type="file"
+                              accept="image/*"
                               onChange={(e) => {
-                                const value = e.target.value;
-                                const newImages = value ? [value] : [];
-                                field.onChange(newImages);
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    const base64String = reader.result as string;
+                                    field.onChange([base64String]);
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
                               }}
                             />
                           </FormControl>
+                          {field.value?.[0] && (
+                            <div className="mt-2">
+                              <img 
+                                src={field.value[0]} 
+                                alt="Preview" 
+                                className="h-20 w-20 object-cover rounded-md"
+                              />
+                            </div>
+                          )}
                           <FormDescription>
-                            Nhập URL hình ảnh sản phẩm
+                            Chọn hình ảnh sản phẩm
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -485,7 +507,7 @@ export default function ProductsPage() {
                   <SelectValue placeholder="Tất cả nhóm hàng" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tất cả nhóm hàng</SelectItem>
+                  <SelectItem value="all">Tất cả nhóm hàng</SelectItem>
                   {categories.map((category: any) => (
                     <SelectItem key={category.id} value={category.id.toString()}>
                       {category.name}

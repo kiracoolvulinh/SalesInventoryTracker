@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest2 } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -43,6 +44,7 @@ import {
 } from "@/components/ui/popover";
 import { vi } from "date-fns/locale";
 import { Link } from "wouter";
+import type { Product, Supplier, PurchaseOrder } from "@shared/schema";
 
 // Define form schema
 const purchaseOrderSchema = z.object({
@@ -125,7 +127,7 @@ export default function PurchaseOrdersPage() {
 
   // Fetch suppliers for the dropdown
   const { 
-    data: suppliers = [],
+    data: suppliers = [] as Supplier[], 
     isLoading: isSuppliersLoading 
   } = useQuery({
     queryKey: ['/api/suppliers'],
@@ -133,7 +135,7 @@ export default function PurchaseOrdersPage() {
 
   // Fetch products for the dropdown
   const { 
-    data: products = [],
+    data: products = [] as Product[], 
     isLoading: isProductsLoading 
   } = useQuery({
     queryKey: ['/api/products'],
@@ -141,13 +143,30 @@ export default function PurchaseOrdersPage() {
 
   // Fetch purchase orders
   const { 
-    data: purchaseOrders = [], 
+    data: purchaseOrders = [] as PurchaseOrder[], 
     isLoading,
     isError,
     error
   } = useQuery({
     queryKey: ['/api/purchase-orders'],
   });
+
+  // Auto-generate order code
+  const generateOrderCode = () => {
+    if (!purchaseOrders || purchaseOrders.length === 0) return "PN0001";
+    
+    // Find the highest order code number
+    const codes = purchaseOrders.map((order: any) => {
+      const match = order.code.match(/PN(\d+)/);
+      return match ? parseInt(match[1], 10) : 0;
+    });
+    
+    const highestCode = Math.max(...codes);
+    const nextCode = highestCode + 1;
+    
+    // Format with leading zeros
+    return `PN${nextCode.toString().padStart(4, '0')}`;
+  };
 
   // Reset form when dialog is opened/closed
   useEffect(() => {
@@ -156,27 +175,26 @@ export default function PurchaseOrdersPage() {
         code: generateOrderCode(),
         date: new Date(),
         supplierId: "",
-        documents: "",
         totalAmount: 0,
         paidAmount: 0,
-        debt: 0,
-        notes: "",
+        paymentMethod: "cash",
+        status: "completed",
         items: [
           {
             productId: "",
             quantity: 1,
             purchasePrice: 0,
-            sellingPrice: 0,
             amount: 0,
           },
         ],
       });
     }
-  }, [isDialogOpen, form]);
+  }, [isDialogOpen, form, purchaseOrders]);
 
   // Create purchase order mutation
   const createMutation = useMutation({
     mutationFn: async (data: PurchaseOrderFormValues) => {
+      try {
       const formattedData = {
         order: {
           code: data.code,
@@ -189,6 +207,7 @@ export default function PurchaseOrdersPage() {
           notes: data.notes || "",
         },
         items: data.items.map(item => ({
+          purchaseOrderId: 0,
           productId: parseInt(item.productId),
           quantity: item.quantity,
           purchasePrice: item.purchasePrice,
@@ -197,8 +216,19 @@ export default function PurchaseOrdersPage() {
         }))
       };
       
-      const res = await apiRequest("POST", "/api/purchase-orders", formattedData);
+        console.log('Sending purchase order data:', formattedData);
+      const res = await apiRequest2("POST", "/api/purchase-orders", formattedData);
+        
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message || 'Failed to create purchase order');
+        }
+        
       return await res.json();
+      } catch (error) {
+        console.error('Error creating purchase order:', error);
+        throw error;
+      }
     },
     onSuccess: () => {
       toast({
@@ -212,7 +242,7 @@ export default function PurchaseOrdersPage() {
     onError: (error: Error) => {
       toast({
         title: "Lỗi",
-        description: error.message,
+        description: error.message || "Không thể tạo phiếu nhập hàng",
         variant: "destructive",
       });
     },
@@ -221,23 +251,6 @@ export default function PurchaseOrdersPage() {
   // Handle form submission
   const onSubmit = (data: PurchaseOrderFormValues) => {
     createMutation.mutate(data);
-  };
-
-  // Auto-generate order code
-  const generateOrderCode = () => {
-    if (purchaseOrders.length === 0) return "PN0001";
-    
-    // Find the highest order code number
-    const codes = purchaseOrders.map((order: any) => {
-      const match = order.code.match(/PN(\d+)/);
-      return match ? parseInt(match[1], 10) : 0;
-    });
-    
-    const highestCode = Math.max(...codes);
-    const nextCode = highestCode + 1;
-    
-    // Format with leading zeros
-    return `PN${nextCode.toString().padStart(4, '0')}`;
   };
 
   // Handle adding a new item row
@@ -256,12 +269,85 @@ export default function PurchaseOrdersPage() {
     return products.find((product: any) => product.id === parseInt(productId));
   };
 
-  // Handle product selection to set default prices
+  // Handle product selection
   const handleProductSelection = (productId: string, index: number) => {
-    const product = getProductById(productId);
+    const product = products.find((p: any) => p.id.toString() === productId);
     if (product) {
+      form.setValue(`items.${index}.productId`, productId);
       form.setValue(`items.${index}.purchasePrice`, product.purchasePrice);
       form.setValue(`items.${index}.sellingPrice`, product.sellingPrice);
+      // Recalculate amount after setting prices
+      const quantity = form.getValues(`items.${index}.quantity`);
+      const amount = quantity * product.purchasePrice;
+      form.setValue(`items.${index}.amount`, amount);
+      
+      // Update total amount
+      const items = form.getValues("items");
+      const totalAmount = items.reduce((sum, item) => sum + (item.amount || 0), 0);
+      form.setValue("totalAmount", totalAmount);
+      form.setValue("debt", totalAmount - (form.getValues("paidAmount") || 0));
+    }
+  };
+
+  // Handle quantity change
+  const handleQuantityChange = (value: string, index: number) => {
+    const quantity = parseFloat(value) || 0;
+    const purchasePrice = form.getValues(`items.${index}.purchasePrice`);
+    const amount = quantity * purchasePrice;
+    form.setValue(`items.${index}.amount`, amount);
+    
+    // Update total amount
+    const items = form.getValues("items");
+    const totalAmount = items.reduce((sum, item) => sum + (item.amount || 0), 0);
+    form.setValue("totalAmount", totalAmount);
+    form.setValue("debt", totalAmount - (form.getValues("paidAmount") || 0));
+  };
+
+  // Handle price change
+  const handlePriceChange = (value: string, index: number) => {
+    const price = parseFloat(value) || 0;
+    const quantity = form.getValues(`items.${index}.quantity`);
+    const amount = quantity * price;
+    form.setValue(`items.${index}.amount`, amount);
+    
+    // Update total amount
+    const items = form.getValues("items");
+    const totalAmount = items.reduce((sum, item) => sum + (item.amount || 0), 0);
+    form.setValue("totalAmount", totalAmount);
+    form.setValue("debt", totalAmount - (form.getValues("paidAmount") || 0));
+  };
+
+  // Delete purchase order mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (orderId: number) => {
+      const res = await apiRequest("DELETE", `/api/purchase-orders/${orderId}`);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to delete purchase order');
+      }
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Thành công",
+        description: "Đã xóa phiếu nhập hàng",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/purchase-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Lỗi",
+        description: error.message || "Không thể xóa phiếu nhập hàng",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handle delete purchase order
+  const handleDelete = (orderId: number) => {
+    if (window.confirm("Bạn có chắc chắn muốn xóa phiếu nhập hàng này?")) {
+      deleteMutation.mutate(orderId);
     }
   };
 
@@ -277,7 +363,7 @@ export default function PurchaseOrdersPage() {
                 Tạo phiếu nhập
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Tạo phiếu nhập hàng</DialogTitle>
               </DialogHeader>
@@ -389,11 +475,11 @@ export default function PurchaseOrdersPage() {
                           <tr>
                             <th className="px-2 py-2 text-left text-xs font-medium text-neutral-dark">STT</th>
                             <th className="px-2 py-2 text-left text-xs font-medium text-neutral-dark">Mã hàng</th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-neutral-dark">Tên hàng</th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-neutral-dark">Số lượng</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-neutral-dark w-50">Tên hàng</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-neutral-dark w-24">Số lượng</th>
                             <th className="px-2 py-2 text-left text-xs font-medium text-neutral-dark">Giá nhập</th>
                             <th className="px-2 py-2 text-left text-xs font-medium text-neutral-dark">Giá bán</th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-neutral-dark">Thành tiền</th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-neutral-dark w-35">Thành tiền</th>
                             <th className="px-2 py-2 text-center text-xs font-medium text-neutral-dark">Xóa</th>
                           </tr>
                         </thead>
@@ -433,19 +519,25 @@ export default function PurchaseOrdersPage() {
                                 />
                               </td>
                               <td className="px-2 py-2 text-sm">
-                                {field.productId && getProductById(field.productId.toString())?.name}
+                                {form.watch(`items.${index}.productId`) && 
+                                  products.find((p: any) => p.id.toString() === form.watch(`items.${index}.productId`))?.name}
                               </td>
                               <td className="px-2 py-2">
                                 <FormField
                                   control={form.control}
                                   name={`items.${index}.quantity`}
                                   render={({ field }) => (
-                                    <FormItem className="m-0 space-y-1">
+                                    <FormItem>
                                       <FormControl>
                                         <Input 
                                           type="number" 
+                                          min="1"
                                           className="w-20"
                                           {...field}
+                                          onChange={(e) => {
+                                            field.onChange(e);
+                                            handleQuantityChange(e.target.value, index);
+                                          }}
                                         />
                                       </FormControl>
                                       <FormMessage />
@@ -458,12 +550,16 @@ export default function PurchaseOrdersPage() {
                                   control={form.control}
                                   name={`items.${index}.purchasePrice`}
                                   render={({ field }) => (
-                                    <FormItem className="m-0 space-y-1">
+                                    <FormItem>
                                       <FormControl>
                                         <Input 
                                           type="number" 
-                                          className="w-28"
+                                          min="0"
                                           {...field}
+                                          onChange={(e) => {
+                                            field.onChange(e);
+                                            handlePriceChange(e.target.value, index);
+                                          }}
                                         />
                                       </FormControl>
                                       <FormMessage />
@@ -476,11 +572,11 @@ export default function PurchaseOrdersPage() {
                                   control={form.control}
                                   name={`items.${index}.sellingPrice`}
                                   render={({ field }) => (
-                                    <FormItem className="m-0 space-y-1">
+                                    <FormItem>
                                       <FormControl>
                                         <Input 
                                           type="number" 
-                                          className="w-28"
+                                          min="0"
                                           {...field}
                                         />
                                       </FormControl>
@@ -489,7 +585,7 @@ export default function PurchaseOrdersPage() {
                                   )}
                                 />
                               </td>
-                              <td className="px-2 py-2 text-sm font-medium">
+                              <td className="px-2 py-2 text-sm font-medium w-40">
                                 {new Intl.NumberFormat('vi-VN').format(form.getValues(`items.${index}.amount`))} ₫
                               </td>
                               <td className="px-2 py-2 text-center">
@@ -721,11 +817,22 @@ export default function PurchaseOrdersPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-center text-sm font-medium">
+                          <div className="flex justify-center space-x-2">
                           <Link to={`/transactions/purchase-orders/${order.id}`}>
                             <Button variant="ghost" size="sm" className="text-primary hover:text-primary-dark">
                               <Eye className="h-4 w-4" />
                             </Button>
                           </Link>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-destructive hover:text-destructive-dark"
+                              onClick={() => handleDelete(order.id)}
+                              disabled={deleteMutation.isPending}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))

@@ -70,7 +70,7 @@ type SalesOrderFormValues = z.infer<typeof salesOrderSchema>;
 export default function SalesOrdersPage() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -209,7 +209,7 @@ export default function SalesOrdersPage() {
     },
     onError: (error: Error) => {
       toast({
-        title: "Lỗi",
+        title: "Lỗi rồi",
         description: error.message,
         variant: "destructive",
       });
@@ -258,13 +258,48 @@ export default function SalesOrdersPage() {
     const product = getProductById(productId);
     if (product) {
       form.setValue(`items.${index}.price`, product.sellingPrice);
+      // Calculate amount for this item
+      const quantity = form.getValues(`items.${index}.quantity`);
+      const amount = quantity * product.sellingPrice;
+      form.setValue(`items.${index}.amount`, amount);
+      
+      // Update total amount
+      const items = form.getValues("items");
+      const totalAmount = items.reduce((sum, item) => sum + (item.amount || 0), 0);
+      form.setValue("totalAmount", totalAmount);
     }
   };
 
+  // Handle quantity change
+  const handleQuantityChange = (value: string, index: number) => {
+    const quantity = parseFloat(value) || 0;
+    const price = form.getValues(`items.${index}.price`);
+    const amount = quantity * price;
+    form.setValue(`items.${index}.amount`, amount);
+    
+    // Update total amount
+    const items = form.getValues("items");
+    const totalAmount = items.reduce((sum, item) => sum + (item.amount || 0), 0);
+    form.setValue("totalAmount", totalAmount);
+  };
+
+  // Handle price change
+  const handlePriceChange = (value: string, index: number) => {
+    const price = parseFloat(value) || 0;
+    const quantity = form.getValues(`items.${index}.quantity`);
+    const amount = quantity * price;
+    form.setValue(`items.${index}.amount`, amount);
+    
+    // Update total amount
+    const items = form.getValues("items");
+    const totalAmount = items.reduce((sum, item) => sum + (item.amount || 0), 0);
+    form.setValue("totalAmount", totalAmount);
+  };
+
   // Filter sales orders by status
-  const filteredOrders = statusFilter
-    ? salesOrders.filter((order: any) => order.status === statusFilter)
-    : salesOrders;
+  const filteredOrders = statusFilter === "all"
+    ? salesOrders
+    : salesOrders.filter((order: any) => order.status === statusFilter);
 
   // Filter orders by date range if set
   const dateFilteredOrders = dateRange.from
@@ -305,9 +340,9 @@ export default function SalesOrdersPage() {
                 Tạo phiếu bán
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-[90vw] max-h-[90vh] w-[90vw] h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Tạo phiếu bán hàng</DialogTitle>
+                <DialogTitle>Tạo phiếu bán</DialogTitle>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -490,6 +525,10 @@ export default function SalesOrdersPage() {
                                           type="number" 
                                           className="w-20"
                                           {...field}
+                                          onChange={(e) => {
+                                            field.onChange(e);
+                                            handleQuantityChange(e.target.value, index);
+                                          }}
                                         />
                                       </FormControl>
                                       <FormMessage />
@@ -508,6 +547,10 @@ export default function SalesOrdersPage() {
                                           type="number" 
                                           className="w-28"
                                           {...field}
+                                          onChange={(e) => {
+                                            field.onChange(e);
+                                            handlePriceChange(e.target.value, index);
+                                          }}
                                         />
                                       </FormControl>
                                       <FormMessage />
@@ -707,7 +750,7 @@ export default function SalesOrdersPage() {
                   <SelectValue placeholder="Tất cả trạng thái" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tất cả trạng thái</SelectItem>
+                  <SelectItem value="all">Tất cả trạng thái</SelectItem>
                   <SelectItem value="completed">Hoàn thành</SelectItem>
                   <SelectItem value="pending">Chờ</SelectItem>
                 </SelectContent>

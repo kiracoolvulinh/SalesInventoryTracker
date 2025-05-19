@@ -8,6 +8,13 @@ import { nanoid } from "nanoid";
 
 const viteLogger = createLogger();
 
+const logMessage = (message: string, source: string) => {
+  const timestamp = new Date();
+  const formattedTime = timestamp.toLocaleTimeString();
+  // Log message using a more appropriate mechanism
+  // You might want to use a proper logging library here
+};
+
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",

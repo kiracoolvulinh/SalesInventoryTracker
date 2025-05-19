@@ -10,6 +10,6 @@ async function hashPassword(password) {
 }
 
 // Hash the password 'admin123'
-hashPassword('admin123').then(hash => {
-  console.log(hash);
+hashPassword('admin123').then((hash) => {
+  process.stdout.write(hash + '\n');
 });

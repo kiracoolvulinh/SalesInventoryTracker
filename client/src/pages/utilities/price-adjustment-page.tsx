@@ -49,7 +49,7 @@ export default function PriceAdjustmentPage() {
   const { user } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
   // Form for price adjustment
@@ -177,7 +177,7 @@ export default function PriceAdjustmentPage() {
   let filteredProducts = [...products];
   
   // Apply category filter
-  if (categoryFilter) {
+  if (categoryFilter !== "all") {
     filteredProducts = filteredProducts.filter(
       (product: any) => product.categoryId === parseInt(categoryFilter)
     );
@@ -231,7 +231,7 @@ export default function PriceAdjustmentPage() {
                   <SelectValue placeholder="Tất cả nhóm hàng" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tất cả nhóm hàng</SelectItem>
+                  <SelectItem value="all">Tất cả nhóm hàng</SelectItem>
                   {categories.map((category: any) => (
                     <SelectItem key={category.id} value={category.id.toString()}>
                       {category.name}

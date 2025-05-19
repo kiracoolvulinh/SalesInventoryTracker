@@ -226,9 +226,9 @@ export default function CustomersPage() {
   };
 
   // Filter customers based on customer type
-  const filteredCustomers = customerTypeFilter
-    ? customers.filter((customer: any) => customer.customerType === customerTypeFilter)
-    : customers;
+  const filteredCustomers = customerTypeFilter === "all" || !customerTypeFilter
+    ? customers
+    : customers.filter((customer: any) => customer.customerType === customerTypeFilter);
 
   // Auto-generate customer code for new customers
   const generateCustomerCode = () => {
@@ -426,7 +426,7 @@ export default function CustomersPage() {
                   <SelectValue placeholder="Tất cả nhóm" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tất cả nhóm</SelectItem>
+                  <SelectItem value="all">Tất cả nhóm</SelectItem>
                   <SelectItem value="regular">Khách thường</SelectItem>
                   <SelectItem value="vip">Khách VIP</SelectItem>
                 </SelectContent>

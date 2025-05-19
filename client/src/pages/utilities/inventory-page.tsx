@@ -25,8 +25,8 @@ import { useToast } from "@/hooks/use-toast";
 export default function InventoryPage() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [stockFilter, setStockFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [stockFilter, setStockFilter] = useState("all");
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
@@ -101,14 +101,12 @@ export default function InventoryPage() {
   let filteredProducts = [...products];
   
   // Apply category filter
-  if (categoryFilter) {
-    filteredProducts = filteredProducts.filter(
-      (product: any) => product.categoryId === parseInt(categoryFilter)
-    );
+  if (categoryFilter !== "all") {
+    filteredProducts = filteredProducts.filter((product: any) => product.categoryId === parseInt(categoryFilter));
   }
   
   // Apply stock filter
-  if (stockFilter) {
+  if (stockFilter !== "all") {
     switch (stockFilter) {
       case "low":
         filteredProducts = filteredProducts.filter((product: any) => product.stock <= 5);
@@ -234,7 +232,7 @@ export default function InventoryPage() {
                   <SelectValue placeholder="Tất cả nhóm hàng" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tất cả nhóm hàng</SelectItem>
+                  <SelectItem value="all">Tất cả nhóm hàng</SelectItem>
                   {categories.map((category: any) => (
                     <SelectItem key={category.id} value={category.id.toString()}>
                       {category.name}
@@ -253,7 +251,7 @@ export default function InventoryPage() {
                   <SelectValue placeholder="Tất cả trạng thái" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tất cả trạng thái</SelectItem>
+                  <SelectItem value="all">Tất cả trạng thái</SelectItem>
                   <SelectItem value="available">Còn hàng</SelectItem>
                   <SelectItem value="low">Sắp hết hàng</SelectItem>
                   <SelectItem value="out">Hết hàng</SelectItem>

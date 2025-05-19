@@ -1,11 +1,13 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { roles } from "@shared/schema";
 
 type SidebarItem = {
   name: string;
   href: string;
   icon: string;
+  moduleId: string;
 };
 
 type SidebarGroupProps = {
@@ -15,12 +17,25 @@ type SidebarGroupProps = {
 
 function SidebarGroup({ title, items }: SidebarGroupProps) {
   const [location] = useLocation();
+  const { user } = useAuth();
+
+  const filteredItems = items.filter(item => {
+    if (!user?.role?.permissions) {
+      return false;
+    }
+    
+    const modulePermissions = user.role.permissions[item.moduleId];
+    const hasPermission = modulePermissions?.view === true;
+    return hasPermission;
+  });
+
+  if (filteredItems.length === 0) return null;
 
   return (
     <div className="space-y-1">
       <div className="px-3 py-2 text-neutral-medium text-sm font-medium">{title}</div>
       
-      {items.map((item) => (
+      {filteredItems.map((item) => (
         <Link 
           href={item.href} 
           key={item.href}
@@ -50,12 +65,12 @@ export function Sidebar({ isSidebarOpen, toggleSidebar }: { isSidebarOpen: boole
         {
           name: "Danh mục tài khoản",
           href: "/settings/accounts",
-          icon: "manage_accounts"
+          moduleId: "settings"
         },
         {
           name: "Phân quyền chức năng",
           href: "/settings/permissions",
-          icon: "admin_panel_settings"
+          moduleId: "settings"
         }
       ]
     },
@@ -65,22 +80,22 @@ export function Sidebar({ isSidebarOpen, toggleSidebar }: { isSidebarOpen: boole
         {
           name: "Danh mục Nhóm hàng",
           href: "/categories/product-categories",
-          icon: "category"
+          moduleId: "categories"
         },
         {
           name: "Danh mục hàng hóa",
           href: "/categories/products",
-          icon: "inventory_2"
+          moduleId: "products"
         },
         {
           name: "Danh mục nhà cung cấp",
           href: "/categories/suppliers",
-          icon: "local_shipping"
+          moduleId: "suppliers"
         },
         {
           name: "Danh mục khách hàng",
           href: "/categories/customers",
-          icon: "people"
+          moduleId: "customers"
         }
       ]
     },
@@ -90,12 +105,12 @@ export function Sidebar({ isSidebarOpen, toggleSidebar }: { isSidebarOpen: boole
         {
           name: "Quản lý nhập hàng",
           href: "/transactions/purchase-orders",
-          icon: "input"
+          moduleId: "purchases"
         },
         {
           name: "Quản lý bán hàng",
           href: "/transactions/sales-orders",
-          icon: "point_of_sale"
+          moduleId: "sales"
         }
       ]
     },
@@ -105,12 +120,12 @@ export function Sidebar({ isSidebarOpen, toggleSidebar }: { isSidebarOpen: boole
         {
           name: "Quản lý tồn kho",
           href: "/utilities/inventory",
-          icon: "inventory"
+          moduleId: "inventory"
         },
         {
           name: "Điều chỉnh giá bán",
           href: "/utilities/price-adjustment",
-          icon: "price_change"
+          moduleId: "prices"
         }
       ]
     }

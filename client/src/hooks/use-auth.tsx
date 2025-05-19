@@ -3,13 +3,28 @@ import {
   useQuery,
   useMutation,
   UseMutationResult,
+  QueryKey,
 } from "@tanstack/react-query";
 import { insertUserSchema, User as SelectUser, InsertUser } from "@shared/schema";
 import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
+
+type LoginData = {
+  username: string;
+  password: string;
+};
+
+type UserWithRole = SelectUser & {
+  role?: {
+    id: number;
+    name: string;
+    permissions: Record<string, Record<string, boolean>>;
+  };
+};
 
 type AuthContextType = {
-  user: SelectUser | null;
+  user: UserWithRole | null;
   isLoading: boolean;
   error: Error | null;
   loginMutation: UseMutationResult<SelectUser, Error, LoginData>;
@@ -17,27 +32,46 @@ type AuthContextType = {
   registerMutation: UseMutationResult<SelectUser, Error, InsertUser>;
 };
 
-type LoginData = Pick<InsertUser, "username" | "password">;
+														   
 
 export const AuthContext = createContext<AuthContextType | null>(null);
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
+  
   const {
     data: user,
     error,
     isLoading,
-  } = useQuery<SelectUser | undefined, Error>({
-    queryKey: ["/api/user"],
+    refetch
+  } = useQuery<UserWithRole | undefined, Error>({
+    queryKey: ["/api/taikhoan"] as QueryKey,
     queryFn: getQueryFn({ on401: "returnNull" }),
+    retry: false,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    staleTime: 0,
+    cacheTime: 0
   });
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
       const res = await apiRequest("POST", "/api/login", credentials);
-      return await res.json();
+      const data = await res.json();
+      return data;
     },
-    onSuccess: (user: SelectUser) => {
-      queryClient.setQueryData(["/api/user"], user);
+    onSuccess: async (user: SelectUser) => {
+      // Refetch user data to get role and permissions
+      await queryClient.invalidateQueries({ queryKey: ["/api/taikhoan"] });
+      await refetch();
+      toast({
+        title: "Đăng nhập thành công",
+        description: "Chào mừng bạn quay trở lại!",
+      });
+      setTimeout(() => {
+        navigate("/", { replace: true });
+      }, 100);
     },
     onError: (error: Error) => {
       toast({
@@ -51,10 +85,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const registerMutation = useMutation({
     mutationFn: async (credentials: InsertUser) => {
       const res = await apiRequest("POST", "/api/register", credentials);
-      return await res.json();
+      const data = await res.json();
+      return data;
     },
-    onSuccess: (user: SelectUser) => {
-      queryClient.setQueryData(["/api/user"], user);
+    onSuccess: async (user: SelectUser) => {
+      // Refetch user data to get role and permissions
+      await refetch();
+      toast({
+        title: "Đăng ký thành công",
+        description: "Tài khoản của bạn đã được tạo!",
+      });
+      setTimeout(() => {
+        navigate("/", { replace: true });
+      }, 100);
     },
     onError: (error: Error) => {
       toast({
@@ -71,6 +114,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: () => {
       queryClient.setQueryData(["/api/user"], null);
+      toast({
+        title: "Đăng xuất thành công",
+        description: "Bạn đã đăng xuất khỏi hệ thống",
+      });
+      setTimeout(() => {
+        navigate("/auth", { replace: true });
+      }, 100);
     },
     onError: (error: Error) => {
       toast({
