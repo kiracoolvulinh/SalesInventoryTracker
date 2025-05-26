@@ -198,7 +198,7 @@ export default function PurchaseOrdersPage() {
       const formattedData = {
         order: {
           code: data.code,
-          date: data.date.toISOString(),
+          date:  data.date,
           supplierId: parseInt(data.supplierId),
           documents: data.documents || "",
           totalAmount: data.totalAmount,
@@ -413,7 +413,7 @@ export default function PurchaseOrdersPage() {
                               <Calendar
                                 mode="single"
                                 selected={field.value}
-                                onSelect={field.onChange}
+                                onSelect={(date) => field.onChange(date instanceof Date ? date : new Date(date))}
                                 locale={vi}
                               />
                             </PopoverContent>

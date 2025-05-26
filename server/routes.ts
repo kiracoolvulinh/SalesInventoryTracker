@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
@@ -9,22 +9,8 @@ import {
   insertSalesOrderSchema, insertSalesOrderItemSchema, insertPriceAdjustmentSchema,
   insertUserSchema, insertRoleSchema
 } from "@shared/schema";
-
-// Helper for role-based access control
-function requireRole(requiredRoles: string[]) {
-  return (req: Express.Request, res: Express.Response, next: Function) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Chưa đăng nhập" });
-    }
-    
-    const userRole = req.user?.roleId;
-    if (!userRole || !requiredRoles.includes(userRole.toString())) {
-      return res.status(403).json({ message: "Không có quyền truy cập" });
-    }
-    
-    next();
-  };
-}
+import { eq } from "drizzle-orm";
+import { db } from "./db";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Sets up authentication routes
@@ -398,24 +384,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post(
     "/api/purchase-orders",
-    requireRole("admin"),
-    async (req: Express.Request, res: Express.Response, next: Express.NextFunction) => {
-    try {
-        const validatedData = insertPurchaseOrderSchema.parse(req.body);
-        console.log('Creating purchase order with data:', validatedData);
-      
-        const result = await storage.createPurchaseOrder(validatedData);
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { order, items } = req.body;
+        const validatedOrder = insertPurchaseOrderSchema.parse(order);
+        const validatedItems = z.array(insertPurchaseOrderItemSchema).parse(items);
+        
+        const result = await storage.createPurchaseOrder(validatedOrder, validatedItems);
         console.log('Purchase order created successfully:', result);
       
-      res.status(201).json(result);
-    } catch (error) {
+        res.status(201).json(result);
+      } catch (error) {
         console.error('Error creating purchase order:', error);
-      next(error);
+        next(error);
       }
     }
   );
 
-  app.delete("/api/purchase-orders/:id", async (req, res, next) => {
+  app.delete("/api/purchase-orders/:id", async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = parseInt(req.params.id);
       const order = await storage.getPurchaseOrder(id);
@@ -436,8 +422,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Delete the purchase order (this will cascade delete the items)
-      await storage.deletePurchaseOrder(id);
+      // Delete the purchase order and its items using a transaction
+      await db.transaction(async (tx) => {
+        await tx.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, id));
+        await tx.delete(purchaseOrders).where(eq(purchaseOrders.id, id));
+      });
+
       res.status(204).end();
     } catch (error) {
       next(error);
