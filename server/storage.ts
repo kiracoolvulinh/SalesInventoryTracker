@@ -69,6 +69,7 @@ export interface IStorage {
   getPurchaseOrder(id: number): Promise<PurchaseOrder | undefined>;
   createPurchaseOrder(order: InsertPurchaseOrder, items: InsertPurchaseOrderItem[]): Promise<{ order: PurchaseOrder, items: PurchaseOrderItem[] }>;
   getPurchaseOrderItems(purchaseOrderId: number): Promise<PurchaseOrderItem[]>;
+  deletePurchaseOrder(id: number): Promise<boolean>; // <-- thêm dòng này
   
   // Sales Orders
   getSalesOrders(): Promise<SalesOrder[]>;
@@ -409,6 +410,21 @@ export class DatabaseStorage implements IStorage {
       .from(purchaseOrderItems)
       .where(eq(purchaseOrderItems.purchaseOrderId, purchaseOrderId));
   }
+
+  async deletePurchaseOrder(id: number): Promise<boolean> {
+  // Xóa các item trước
+  await db
+    .delete(purchaseOrderItems)
+    .where(eq(purchaseOrderItems.purchaseOrderId, id));
+
+  // Sau đó xóa order
+  await db
+    .delete(purchaseOrders)
+    .where(eq(purchaseOrders.id, id));
+
+  return true;
+}
+
   
   // Sales Orders
   async getSalesOrders(): Promise<SalesOrder[]> {

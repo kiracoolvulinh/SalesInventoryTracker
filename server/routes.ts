@@ -382,26 +382,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post(
-    "/api/purchase-orders",
-    async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const { order, items } = req.body;
-        const validatedOrder = insertPurchaseOrderSchema.parse(order);
-        const validatedItems = z.array(insertPurchaseOrderItemSchema).parse(items);
-        
-        const result = await storage.createPurchaseOrder(validatedOrder, validatedItems);
-        console.log('Purchase order created successfully:', result);
-      
-        res.status(201).json(result);
-      } catch (error) {
+
+  app.post("/api/purchase-orders", async (req, res, next) => {
+    try {
+      console.log('Received purchase order request:', req.body);
+
+      const { order, items } = req.body;
+
+      // Convert date string to Date object if needed
+      const orderWithDate = {
+        ...order,
+        date: new Date(order.date)
+      };
+
+      const validatedOrder = insertPurchaseOrderSchema.parse(orderWithDate);
+      const validatedItems = z.array(insertPurchaseOrderItemSchema).parse(items);
+
+      const result = await storage.createPurchaseOrder(validatedOrder, validatedItems);
+      console.log('Purchase order created successfully:', result);
+
+      res.status(201).json(result);
+    } catch (error) {
         console.error('Error creating purchase order:', error);
-        next(error);
+      next(error);
       }
     }
   );
 
-  app.delete("/api/purchase-orders/:id", async (req: Request, res: Response, next: NextFunction) => {
+  // app.delete("/api/purchase-orders/:id", async (req: Request, res: Response, next: NextFunction) => {
+  //   try {
+  //     const id = parseInt(req.params.id);
+  //     const order = await storage.getPurchaseOrder(id);
+  //     if (!order) {
+  //       return res.status(404).json({ message: "Phiếu nhập không tồn tại" });
+  //     }
+
+  //     // Get order items to update product stock
+  //     const items = await storage.getPurchaseOrderItems(id);
+      
+  //     // Update product stock (subtract the quantities)
+  //     for (const item of items) {
+  //       const product = await storage.getProduct(item.productId);
+  //       if (product) {
+  //         await storage.updateProduct(product.id, {
+  //           stock: product.stock - item.quantity
+  //         });
+  //       }
+  //     }
+
+  //     // Delete the purchase order and its items using a transaction
+  //     await db.transaction(async (tx) => {
+  //       await tx.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, id));
+  //       await tx.delete(purchaseOrders).where(eq(purchaseOrders.id, id));
+  //     });
+
+  //     res.status(204).end();
+  //   } catch (error) {
+  //     next(error);
+  //   }
+  // });
+
+  app.delete("/api/purchase-orders/:id", async (req, res, next) => {
     try {
       const id = parseInt(req.params.id);
       const order = await storage.getPurchaseOrder(id);
@@ -411,7 +452,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get order items to update product stock
       const items = await storage.getPurchaseOrderItems(id);
-      
+
       // Update product stock (subtract the quantities)
       for (const item of items) {
         const product = await storage.getProduct(item.productId);
@@ -422,17 +463,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Delete the purchase order and its items using a transaction
-      await db.transaction(async (tx) => {
-        await tx.delete(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, id));
-        await tx.delete(purchaseOrders).where(eq(purchaseOrders.id, id));
-      });
-
+      // Delete the purchase order (this will cascade delete the items)
+      await storage.deletePurchaseOrder(id);
       res.status(204).end();
     } catch (error) {
       next(error);
     }
   });
+
   
   // Sales Orders
   app.get("/api/sales-orders", async (req, res, next) => {
