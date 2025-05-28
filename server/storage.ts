@@ -14,12 +14,15 @@ import {
 import { db } from "./db";
 import { eq, and, like, desc, asc, sql } from "drizzle-orm";
 import { pool } from "./db";
+import type { Store as SessionStore } from "express-session";
 
 const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
   // Session store
-  sessionStore: session.SessionStore;
+
+  sessionStore: SessionStore;
+
   
   // Users and roles
   getUser(id: number): Promise<User | undefined>;
@@ -89,7 +92,7 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  sessionStore: session.SessionStore;
+  sessionStore: SessionStore;
   
   constructor() {
     this.sessionStore = new PostgresSessionStore({ 
@@ -225,9 +228,10 @@ export class DatabaseStorage implements IStorage {
   // Products
   async getProducts(params?: { categoryId?: number, search?: string }): Promise<Product[]> {
     let query = db.select().from(products);
-    
+    let conditions = [];
+
     if (params?.categoryId) {
-      query = query.where(eq(products.categoryId, params.categoryId));
+      conditions.push(eq(products.categoryId, params.categoryId));
     }
     
     if (params?.search) {
